@@ -32,6 +32,25 @@ export function frameToBase64(
   return canvas.toDataURL("image/jpeg", JPEG_QUALITY).split(",")[1];
 }
 
+// A friendly local time string plus a part of day, so remarks can reference the
+// hour accurately from the viewer's own clock.
+function localTime(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const hour = d.getHours();
+  const part =
+    hour < 5
+      ? "the small hours"
+      : hour < 12
+        ? "morning"
+        : hour < 17
+          ? "afternoon"
+          : hour < 21
+            ? "evening"
+            : "late evening";
+  return `${pad(hour)}:${pad(d.getMinutes())} (${part})`;
+}
+
 // POST a base64 frame to the serverless function and return the spoken line.
 // Throws with a readable message on any non-ok response so the caller can show
 // a status line rather than crashing.
@@ -39,7 +58,7 @@ export async function observeFrame(image: string): Promise<string> {
   const res = await fetch("/api/observe", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ image }),
+    body: JSON.stringify({ image, localTime: localTime() }),
   });
 
   if (!res.ok) {

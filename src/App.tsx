@@ -22,8 +22,6 @@ const SILENCE_MS = 10000;
 const FIRST_SCAN_MS = 900;
 // How long to keep the lock frame after a face momentarily drops out.
 const LOCK_GRACE_MS = 700;
-// How long the Iron Man eyes stay on after a scan before fading out.
-const EYES_MS = 10000;
 
 // Map a face box (video pixels) to a rectangle in the stage, accounting for the
 // object-fit: cover crop and the mirrored (scaleX(-1)) video, and padded so the
@@ -60,25 +58,6 @@ function mapFaceToStage(
   };
 }
 
-// Map a single point (video pixels) to stage coordinates, mirrored to match the
-// flipped feed.
-function mapPointToStage(
-  p: Point,
-  video: HTMLVideoElement,
-  stage: HTMLElement,
-): Point | null {
-  const vw = video.videoWidth;
-  const vh = video.videoHeight;
-  const sw = stage.clientWidth;
-  const sh = stage.clientHeight;
-  if (!vw || !vh || !sw || !sh) return null;
-
-  const scale = Math.max(sw / vw, sh / vh);
-  const ox = (sw - vw * scale) / 2;
-  const oy = (sh - vh * scale) / 2;
-  return { x: sw - (ox + p.x * scale), y: oy + p.y * scale };
-}
-
 // Map a video-pixel circle (palm centre plus radius) to stage coordinates.
 function mapCircleToStage(
   c: Point,
@@ -98,31 +77,6 @@ function mapCircleToStage(
   return { x: sw - (ox + c.x * scale), y: oy + c.y * scale, r: radiusPx * scale };
 }
 
-// A single Iron Man style helmet eye: an angled glowing slit that points its
-// inner, lower corner toward the centre of the face.
-function IronEye({ x, y, w, side }: { x: number; y: number; w: number; side: "l" | "r" }) {
-  const h = w * 0.44;
-  return (
-    <div
-      className="iron-eye"
-      style={{
-        left: x,
-        top: y,
-        width: w,
-        height: h,
-        transform: `translate(-50%, -50%) rotate(${side === "l" ? -8 : 8}deg) scaleX(${side === "l" ? -1 : 1})`,
-      }}
-    >
-      <svg viewBox="0 0 120 52" preserveAspectRatio="none">
-        <polygon
-          points="4,30 62,6 116,15 116,29 62,36"
-          fill="var(--eye-fill)"
-        />
-      </svg>
-    </div>
-  );
-}
-
 export default function App() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -139,7 +93,6 @@ export default function App() {
   const trackerStopRef = useRef<(() => void) | null>(null);
   const handStopRef = useRef<(() => void) | null>(null);
   const loseTimerRef = useRef<number | null>(null);
-  const eyesTimerRef = useRef<number | null>(null);
 
   const [state, setState] = useState<State>("STANDBY");
   const [status, setStatus] = useState("");
@@ -149,9 +102,6 @@ export default function App() {
   const [cameraOn, setCameraOn] = useState(false);
   const [faceRect, setFaceRect] = useState<Rect | null>(null);
   const [palms, setPalms] = useState<{ x: number; y: number; r: number }[] | null>(null);
-  const [eyePoints, setEyePoints] = useState<Point[] | null>(null);
-  const [eyesOn, setEyesOn] = useState(false);
-  const [eyeCycle, setEyeCycle] = useState(0);
   const [clock, setClock] = useState("00:00:00");
 
   useEffect(() => {
@@ -167,15 +117,6 @@ export default function App() {
     tick();
     const id = window.setInterval(tick, 1000);
     return () => window.clearInterval(id);
-  }, []);
-
-  // Show the Iron Man eyes with a scan, then hide them after EYES_MS. Bumping
-  // eyeCycle remounts the overlay so the scan animation replays each time.
-  const showEyes = useCallback(() => {
-    setEyesOn(true);
-    setEyeCycle((c) => c + 1);
-    if (eyesTimerRef.current !== null) window.clearTimeout(eyesTimerRef.current);
-    eyesTimerRef.current = window.setTimeout(() => setEyesOn(false), EYES_MS);
   }, []);
 
   const typeCaption = useCallback((text: string) => {
@@ -218,8 +159,6 @@ export default function App() {
     setAnalysing(true);
     setState("OBSERVING");
     setStatus("analysing frame...");
-    // Each scan brings the Iron Man eyes back with a fresh scan sweep.
-    showEyes();
 
     try {
       let line = await observeFrame(data);
@@ -236,7 +175,7 @@ export default function App() {
       setState("READY");
       scheduleNext(SILENCE_MS);
     }
-  }, [typeCaption, scheduleNext, showEyes]);
+  }, [typeCaption, scheduleNext]);
 
   useEffect(() => {
     observeRef.current = observe;
@@ -255,7 +194,6 @@ export default function App() {
             loseTimerRef.current = window.setTimeout(() => {
               loseTimerRef.current = null;
               setFaceRect(null);
-              setEyePoints(null);
             }, LOCK_GRACE_MS);
           }
           return;
@@ -266,10 +204,6 @@ export default function App() {
         }
         const rect = mapFaceToStage(result.box, v, stage);
         if (rect) setFaceRect(rect);
-        const pts = result.eyes
-          .map((e) => mapPointToStage(e, v, stage))
-          .filter((p): p is Point => p !== null);
-        setEyePoints(pts.length >= 2 ? pts : null);
       },
       () => setStatus("Face tracking unavailable; showing scanner."),
     );
@@ -313,8 +247,6 @@ export default function App() {
           cameraReadyRef.current = true;
           startTracking();
           startHands();
-          // Track the eyes from the moment the camera opens.
-          showEyes();
           scheduleNext(FIRST_SCAN_MS);
         };
         if (video.readyState >= 1) begin();
@@ -330,7 +262,7 @@ export default function App() {
       typeCaption("The camera is denied to me here (" + name + ").");
       setStatus("Camera error: " + name + " " + message);
     }
-  }, [scheduleNext, startTracking, startHands, showEyes, typeCaption]);
+  }, [scheduleNext, startTracking, startHands, typeCaption]);
 
   const onToggleAuto = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -347,7 +279,6 @@ export default function App() {
       if (timerRef.current !== null) window.clearTimeout(timerRef.current);
       if (typeTimerRef.current !== null) window.clearInterval(typeTimerRef.current);
       if (loseTimerRef.current !== null) window.clearTimeout(loseTimerRef.current);
-      if (eyesTimerRef.current !== null) window.clearTimeout(eyesTimerRef.current);
       trackerStopRef.current?.();
       handStopRef.current?.();
       streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -361,9 +292,6 @@ export default function App() {
       : cameraOn
         ? "SCANNING"
         : "STANDBY";
-
-  const faceCentre = faceRect ? faceRect.left + faceRect.width / 2 : 0;
-  const eyeW = faceRect ? Math.max(28, faceRect.width * 0.26) : 60;
 
   return (
     <>
@@ -472,22 +400,6 @@ export default function App() {
               <div className="pm-label">TRACKING</div>
             </div>
           ))}
-
-          {/* Iron Man eyes: lock to the eyes, appear with a scan, hide after 10s */}
-          {eyesOn && eyePoints ? (
-            <div className="iron-eyes" key={eyeCycle}>
-              <span className="eye-scan" />
-              {eyePoints.map((p, i) => (
-                <IronEye
-                  key={i}
-                  x={p.x}
-                  y={p.y}
-                  w={eyeW}
-                  side={p.x < faceCentre ? "l" : "r"}
-                />
-              ))}
-            </div>
-          ) : null}
 
           <div className="caption">
             <span>{caption}</span>
