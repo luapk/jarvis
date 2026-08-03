@@ -212,8 +212,8 @@ export default function App() {
       <div className="status">{status}</div>
 
       <div className="note">
-        <b>Concept demo.</b> Original British-AI register and the browser's own
-        voice, not an impersonation. It remarks only on clothing, colour,
+        <b>Concept demo.</b> An original British-AI register and voice, not an
+        impersonation. It remarks only on clothing, colour,
         objects, posture, pace and setting, never on a person's body or
         identity, which is the same rule that keeps it in character. No frame is
         stored, logged, or sent anywhere except the single model call. On a real

@@ -18,9 +18,12 @@ about what it chooses to notice, which is what makes it both funny and safe.
 3. The base64 frame is POSTed to `/api/observe`.
 4. The serverless function calls the Anthropic Messages API with the system
    prompt plus the image, and returns a single short line.
-5. The browser types the line out as a HUD caption and speaks it with the Web
-   Speech API using a British English voice.
-6. Requests never overlap. If one is in flight, the next tick is skipped.
+5. The browser types the line out as a HUD caption and speaks it, using the
+   ElevenLabs installation voice via `/api/speak` when configured, otherwise the
+   browser Web Speech API with a British English voice.
+6. Requests never overlap: a scan runs only after the previous observation and
+   its spoken line finish, then the loop holds ten seconds of silence before the
+   next scan.
 
 ## Privacy
 
@@ -43,10 +46,11 @@ identity, it deflects with dry wit and turns to an object or the scene instead.
 ## Project structure
 
 ```
-api/observe.ts     serverless function: holds the key, calls the model
+api/observe.ts     serverless function: holds the Anthropic key, calls the model
+api/speak.ts       serverless function: holds the ElevenLabs key, returns audio
 src/App.tsx        the installation UI and capture loop
 src/observer.ts    frame capture, downscale, encode, fetch helper
-src/voice.ts       Web Speech API voice selection and speak()
+src/voice.ts       ElevenLabs voice with browser Web Speech fallback, speak()
 src/hud.css        HUD styling
 index.html         Vite entry point
 jarvis-street-demo.html   the original single-file reference (look and behaviour)
@@ -82,6 +86,13 @@ observations will fail until you use `vercel dev` or deploy.
 - `MODEL` (optional): defaults to `claude-haiku-4-5-20251001`, a fast, cheap,
   vision-capable model for the live loop. Set to `claude-sonnet-5` for richer
   lines when latency and cost are less critical.
+- `ELEVENLABS_API_KEY` (optional): enables the ElevenLabs installation voice,
+  read server-side only. If unset, the app uses the browser voice, so the demo
+  needs only the Anthropic key.
+- `ELEVENLABS_VOICE_ID` (optional): the ElevenLabs voice. Defaults to the
+  installation voice baked into `api/speak.ts`.
+- `ELEVENLABS_MODEL_ID` (optional): defaults to `eleven_multilingual_v2`
+  (quality). Set to `eleven_turbo_v2_5` for lower latency.
 
 ## Deploy
 
@@ -103,7 +114,6 @@ camera or an upload.
 ## Out of scope for this build
 
 - Marvel and talent clearance for the JARVIS name and any specific voice. This
-  build uses an original British-AI register and the browser voice, not an
-  impersonation.
+  build uses an original British-AI register and voice, not an impersonation.
 - A live moderation feed and kill switch for a public installation.
 - Analytics, storage, or any retention of captured frames.

@@ -1,10 +1,13 @@
-// Web Speech API voice selection and speak(). Prefers a British English voice,
-// falls back to any English voice, then to whatever is available.
+// Speech output. Prefers the ElevenLabs installation voice via /api/speak, and
+// falls back to the browser Web Speech API when ElevenLabs is not configured or
+// a call fails. Every path resolves only when the line has finished being
+// spoken, so the caller can measure silence from that point.
 
 let voice: SpeechSynthesisVoice | null = null;
+let currentAudio: HTMLAudioElement | null = null;
 
 // Names commonly attached to en-GB voices across browsers and platforms, plus a
-// straight lang check for anything tagged en-GB.
+// straight lang check for anything tagged en-GB. Used for the browser fallback.
 const PREFERRED = ["Daniel", "Arthur", "George", "Oliver", "Google UK English Male"];
 
 function pickVoice(): SpeechSynthesisVoice | null {
@@ -31,13 +34,63 @@ export function initVoice(): void {
   };
 }
 
-// Cancel any in-progress utterance and speak the given line. Resolves when the
-// line has finished being spoken, so callers can measure silence from that
-// point. Resolves immediately where speech synthesis is unavailable, and has a
-// safety timeout so a browser that never fires onend cannot stall the loop.
-export function speak(text: string): Promise<void> {
+// Stop anything currently speaking, on either path.
+function stopCurrent(): void {
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio = null;
+  }
+  if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+}
+
+// Play an object-URL clip to completion. Resolves true if it played, false if
+// playback was blocked or errored (so the caller can fall back).
+function playAudio(url: string): Promise<boolean> {
   return new Promise((resolve) => {
-    if (!("speechSynthesis" in window) || !text) {
+    const audio = new Audio(url);
+    currentAudio = audio;
+
+    let settled = false;
+    const finish = (ok: boolean) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(safety);
+      URL.revokeObjectURL(url);
+      if (currentAudio === audio) currentAudio = null;
+      resolve(ok);
+    };
+
+    audio.onended = () => finish(true);
+    audio.onerror = () => finish(false);
+    // Safety net in case neither event fires.
+    const safety = window.setTimeout(() => finish(true), 60000);
+    audio.play().catch(() => finish(false));
+  });
+}
+
+// Try the ElevenLabs installation voice. Returns true if it spoke the line,
+// false to fall back (not configured, call failed, or playback blocked).
+async function speakViaElevenLabs(text: string): Promise<boolean> {
+  try {
+    const res = await fetch("/api/speak", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+    if (!res.ok) return false;
+    const blob = await res.blob();
+    if (!blob.size) return false;
+    return await playAudio(URL.createObjectURL(blob));
+  } catch {
+    return false;
+  }
+}
+
+// Browser Web Speech fallback. Resolves when the utterance ends, with a safety
+// timeout so a browser that never fires onend cannot stall the loop.
+function speakViaBrowser(text: string): Promise<void> {
+  return new Promise((resolve) => {
+    if (!("speechSynthesis" in window)) {
       resolve();
       return;
     }
@@ -50,7 +103,6 @@ export function speak(text: string): Promise<void> {
       resolve();
     };
 
-    window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     if (!voice) voice = pickVoice();
     if (voice) utterance.voice = voice;
@@ -60,9 +112,16 @@ export function speak(text: string): Promise<void> {
     utterance.onend = done;
     utterance.onerror = done;
 
-    // Roughly generous upper bound in case onend never fires (a known quirk in
-    // some browsers): about 90ms per character, floored at a few seconds.
     const fallback = window.setTimeout(done, Math.max(4000, text.length * 90));
     window.speechSynthesis.speak(utterance);
   });
+}
+
+// Speak the given line, ElevenLabs first then browser fallback, resolving when
+// the line has finished.
+export async function speak(text: string): Promise<void> {
+  if (!text) return;
+  stopCurrent();
+  const spoken = await speakViaElevenLabs(text);
+  if (!spoken) await speakViaBrowser(text);
 }
