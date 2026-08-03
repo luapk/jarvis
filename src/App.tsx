@@ -2,20 +2,17 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { frameToBase64, observeFrame } from "./observer.ts";
 import { initVoice, speak } from "./voice.ts";
 
-type Mode = "none" | "camera" | "photo";
 type State = "STANDBY" | "READY" | "OBSERVING";
 
 const AUTO_INTERVAL_MS = 8000;
 
 export default function App() {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const stillRef = useRef<HTMLImageElement>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
 
   // Mutable values read inside timers and async callbacks. Kept in refs so the
   // auto-observe interval always sees the current value, never a stale closure.
   const busyRef = useRef(false);
-  const modeRef = useRef<Mode>("none");
+  const cameraReadyRef = useRef(false);
   const autoRef = useRef(true);
   const timerRef = useRef<number | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -28,7 +25,6 @@ export default function App() {
   const [caption, setCaption] = useState("Awaiting a subject. Do step into the light.");
   const [auto, setAuto] = useState(true);
   const [cameraOn, setCameraOn] = useState(false);
-  const [scanEnabled, setScanEnabled] = useState(false);
 
   useEffect(() => {
     initVoice();
@@ -51,9 +47,8 @@ export default function App() {
   // Capture the current frame and send it for a remark. Never runs two calls at
   // once: if one is in flight, this returns immediately.
   const observe = useCallback(async () => {
-    if (busyRef.current) return;
-    const source =
-      modeRef.current === "photo" ? stillRef.current : videoRef.current;
+    if (busyRef.current || !cameraReadyRef.current) return;
+    const source = videoRef.current;
     if (!source) return;
 
     const data = frameToBase64(source);
@@ -76,6 +71,9 @@ export default function App() {
       setStatus("remark delivered.");
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+      // Surface the failure in the caption itself, not just the status line, so
+      // the cause (for example a missing server key) is impossible to miss.
+      typeCaption("A momentary lapse. " + message);
       setStatus("Model call failed: " + message);
     } finally {
       busyRef.current = false;
@@ -84,18 +82,24 @@ export default function App() {
     }
   }, [typeCaption]);
 
-  // (Re)start the auto-observe loop to match the current toggle and mode.
+  // (Re)start the auto-observe loop to match the current toggle.
   const startAuto = useCallback(() => {
     if (timerRef.current !== null) {
       window.clearInterval(timerRef.current);
       timerRef.current = null;
     }
-    if (autoRef.current && modeRef.current !== "none") {
+    if (autoRef.current && cameraReadyRef.current) {
       timerRef.current = window.setInterval(observe, AUTO_INTERVAL_MS);
     }
   }, [observe]);
 
   const startCamera = useCallback(async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      typeCaption("This browser will not grant me a camera. A pity.");
+      setStatus("getUserMedia unavailable in this browser.");
+      return;
+    }
+    setStatus("requesting camera...");
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "user" },
@@ -105,53 +109,28 @@ export default function App() {
       const video = videoRef.current;
       if (video) {
         video.srcObject = stream;
-        video.onloadedmetadata = () => {
+        const begin = () => {
+          cameraReadyRef.current = true;
           startAuto();
           window.setTimeout(observe, 900);
         };
+        // onloadedmetadata may have already fired if the stream attached fast,
+        // so start the loop directly when metadata is present.
+        if (video.readyState >= 1) begin();
+        else video.onloadedmetadata = begin;
+        // Prompt playback explicitly; some browsers do not autoplay reliably.
+        void video.play().catch(() => undefined);
       }
-      modeRef.current = "camera";
       setCameraOn(true);
-      setScanEnabled(true);
       setState("READY");
       setStatus("camera live.");
     } catch (err) {
       const name = err instanceof Error ? err.name : "error";
-      setStatus(
-        "Camera blocked here (" +
-          name +
-          "). Use a photo instead, the loop is identical.",
-      );
+      const message = err instanceof Error ? err.message : String(err);
+      typeCaption("The camera is denied to me here (" + name + ").");
+      setStatus("Camera error: " + name + " " + message);
     }
-  }, [observe, startAuto]);
-
-  const onPickPhoto = useCallback(() => {
-    fileRef.current?.click();
-  }, []);
-
-  const onFileChange = useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        const still = stillRef.current;
-        if (!still) return;
-        still.onload = () => {
-          modeRef.current = "photo";
-          setCameraOn(false);
-          setScanEnabled(true);
-          setState("READY");
-          setStatus("photo loaded.");
-          startAuto();
-          window.setTimeout(observe, 500);
-        };
-        still.src = reader.result as string;
-      };
-      reader.readAsDataURL(file);
-    },
-    [observe, startAuto],
-  );
+  }, [observe, startAuto, typeCaption]);
 
   const onToggleAuto = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -171,8 +150,6 @@ export default function App() {
     };
   }, []);
 
-  const usingPhoto = !cameraOn && scanEnabled;
-
   return (
     <>
       <div className="head">
@@ -183,19 +160,7 @@ export default function App() {
       </div>
 
       <div className={"stage" + (analysing ? " analysing" : "")}>
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted
-          style={{ display: usingPhoto ? "none" : "block" }}
-        />
-        <img
-          ref={stillRef}
-          className="frame"
-          alt=""
-          style={{ display: usingPhoto ? "block" : "none" }}
-        />
+        <video ref={videoRef} autoPlay playsInline muted />
         <div className="hud">
           <div className="tag">{tag}</div>
           <span className="corner tl" />
@@ -215,17 +180,9 @@ export default function App() {
         <button className="primary" onClick={startCamera}>
           {cameraOn ? "Camera on" : "Start camera"}
         </button>
-        <button onClick={observe} disabled={!scanEnabled}>
+        <button onClick={observe} disabled={!cameraOn}>
           Observe now
         </button>
-        <button onClick={onPickPhoto}>Use a photo instead</button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*"
-          className="hidden-input"
-          onChange={onFileChange}
-        />
         <label className="toggle">
           <input type="checkbox" checked={auto} onChange={onToggleAuto} /> auto-observe
           every 8s
