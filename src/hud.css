@@ -684,3 +684,106 @@ button.primary {
   width: var(--panel-width);
   max-width: var(--panel-width);
 }
+
+/* Iron Man eyes: glowing angled slits locked to the eyes, appearing with a
+   scan sweep. */
+:root {
+  --eye-fill: #dffcff;
+}
+.iron-eyes {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.iron-eye {
+  position: absolute;
+  transition: left 0.08s linear, top 0.08s linear, width 0.08s linear,
+    height 0.08s linear;
+  animation: eyeIn 0.45s ease-out;
+}
+.iron-eye svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  filter: drop-shadow(0 0 5px var(--cyan))
+    drop-shadow(0 0 12px rgba(57, 215, 255, 0.7));
+}
+@keyframes eyeIn {
+  0% { opacity: 0; }
+  35% { opacity: 1; }
+  100% { opacity: 1; }
+}
+.eye-scan {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  left: 0;
+  background: linear-gradient(transparent, var(--cyan), transparent);
+  box-shadow: 0 0 14px var(--cyan);
+  opacity: 0;
+  animation: eyeSweep 0.7s ease-out;
+}
+@keyframes eyeSweep {
+  0% { left: 0; opacity: 0.9; }
+  100% { left: 100%; opacity: 0; }
+}
+
+/* Circular tracking marker placed inside an open palm. */
+.palm-marker {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  transition: left 0.08s linear, top 0.08s linear, width 0.08s linear,
+    height 0.08s linear;
+  pointer-events: none;
+}
+.pm-ring {
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(57, 215, 255, 0.55);
+  border-radius: 50%;
+  box-shadow: 0 0 12px rgba(57, 215, 255, 0.3),
+    inset 0 0 12px rgba(57, 215, 255, 0.2);
+}
+.pm-ring2 {
+  position: absolute;
+  inset: 22%;
+  border: 1px dashed var(--orange);
+  border-radius: 50%;
+  opacity: 0.75;
+  animation: spin 4s linear infinite;
+}
+.pm-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: var(--cyan);
+  box-shadow: 0 0 8px var(--cyan);
+}
+.pm-tick {
+  position: absolute;
+  background: var(--cyan);
+}
+.pm-tick.t { top: -5px; left: 50%; width: 2px; height: 8px; transform: translateX(-50%); }
+.pm-tick.b { bottom: -5px; left: 50%; width: 2px; height: 8px; transform: translateX(-50%); }
+.pm-tick.l { left: -5px; top: 50%; width: 8px; height: 2px; transform: translateY(-50%); }
+.pm-tick.r { right: -5px; top: 50%; width: 8px; height: 2px; transform: translateY(-50%); }
+.pm-label {
+  position: absolute;
+  top: -16px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 8px;
+  letter-spacing: 2px;
+  color: var(--cyan);
+  white-space: nowrap;
+}
+
+/* Subtitles: 50% smaller again. */
+.caption {
+  font-size: clamp(6px, 0.95vw, 8.8px);
+}
