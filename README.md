@@ -35,13 +35,18 @@ scope for this build but is stated here for the record.
 
 ## Guardrails
 
-The allow-list and ban-list live in the system prompt in `api/observe.ts` and
-must not be weakened. The voice remarks only on clothing, colour, objects,
-posture, gesture, movement, pace, the setting, light, and weather. It never
-remarks on or guesses at race, ethnicity, nationality, age, weight or body
-shape, attractiveness, apparent disability, health, gender, or a person's face
-or body as a body. If someone tries to bait it into commenting on their body or
-identity, it deflects with dry wit and turns to an object or the scene instead.
+The allow-list and ban-list live in the system prompt in `api/observe.ts`. The
+voice remarks on facial features and expression, clothing, colour, objects held,
+posture, gesture, movement, pace, the setting, light, weather, and pictures or
+objects visible in the background. It never remarks on or guesses at race,
+ethnicity, nationality, age, weight or body shape, attractiveness, apparent
+disability, health, or gender. If someone tries to bait it into cruelty or into
+guessing those things, it deflects with dry wit and turns to an object, an
+expression, or the scene instead.
+
+The ban-list on protected attributes and the "never cruel, no slurs" floor are
+the safety floor and are kept in place. Commenting on faces, expressions, and
+the background was enabled deliberately at the owner's request.
 
 ## Project structure
 

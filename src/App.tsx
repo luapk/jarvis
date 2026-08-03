@@ -213,12 +213,12 @@ export default function App() {
 
       <div className="note">
         <b>Concept demo.</b> An original British-AI register and voice, not an
-        impersonation. It remarks only on clothing, colour,
-        objects, posture, pace and setting, never on a person's body or
-        identity, which is the same rule that keeps it in character. No frame is
-        stored, logged, or sent anywhere except the single model call. On a real
-        installation this runs behind a moderated feed with a kill switch, and
-        the JARVIS name and voice would need Marvel and talent clearance.
+        impersonation. It remarks on expression, clothing, gesture, the objects
+        you hold and the scene around you, and it never guesses at identity or
+        turns cruel. No frame is stored, logged, or sent anywhere except the
+        single model call. On a real installation this runs behind a moderated
+        feed with a kill switch, and the JARVIS name and voice would need Marvel
+        and talent clearance.
       </div>
     </>
   );
