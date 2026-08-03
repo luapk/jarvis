@@ -671,3 +671,16 @@ button.primary {
   color: var(--cyan);
   font-size: clamp(12px, 1.9vw, 17.6px);
 }
+
+/* Scale the whole panel to fill the viewport, bounded by width and by the
+   height left after the header, controls, and status, keeping the 16:9 stage. */
+:root {
+  --panel-width: min(94vw, calc((100vh - 170px) * 16 / 9));
+}
+.head,
+.stage,
+.controls,
+.status {
+  width: var(--panel-width);
+  max-width: var(--panel-width);
+}
