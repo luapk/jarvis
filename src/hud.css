@@ -295,3 +295,124 @@ button.primary {
 .hidden-input {
   display: none;
 }
+
+/* Splash gate: a dark blue diagonal gradient, near-black navy in the lower
+   left rising to a luminous royal blue in the upper right. */
+.splash {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: linear-gradient(
+    58deg,
+    #04050e 0%,
+    #071236 42%,
+    #123180 76%,
+    #1f4fce 100%
+  );
+}
+
+.splash:before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    120% 90% at 85% 12%,
+    rgba(60, 122, 255, 0.35),
+    transparent 55%
+  );
+  pointer-events: none;
+}
+
+.splash-card {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+}
+
+.splash-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  letter-spacing: 4px;
+  color: var(--cyan);
+}
+
+.splash-title {
+  font-size: clamp(34px, 8vw, 56px);
+  font-weight: 600;
+  letter-spacing: 10px;
+  color: var(--text);
+  margin-left: 10px;
+}
+
+.splash-sub {
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--mute);
+  margin-bottom: 6px;
+}
+
+.splash-input {
+  width: 100%;
+  font: inherit;
+  font-size: 15px;
+  letter-spacing: 2px;
+  text-align: center;
+  color: var(--text);
+  background: rgba(4, 8, 20, 0.55);
+  border: 1px solid rgba(120, 160, 220, 0.35);
+  padding: 13px 14px;
+  border-radius: 8px;
+  outline: none;
+}
+
+.splash-input::placeholder {
+  color: var(--mute);
+  letter-spacing: 2px;
+}
+
+.splash-input:focus {
+  border-color: var(--cyan);
+  box-shadow: 0 0 0 1px var(--cyan), 0 0 18px rgba(57, 215, 255, 0.25);
+}
+
+.splash-input.error {
+  border-color: var(--red);
+  box-shadow: 0 0 0 1px var(--red);
+}
+
+.splash-enter {
+  width: 100%;
+  font: inherit;
+  font-size: 13px;
+  letter-spacing: 2px;
+  color: #04121a;
+  background: var(--cyan);
+  border: 1px solid var(--cyan);
+  font-weight: 600;
+  padding: 12px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.splash-enter:hover {
+  filter: brightness(1.08);
+}
+
+.splash-error {
+  min-height: 16px;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  color: var(--red);
+}

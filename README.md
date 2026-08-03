@@ -97,7 +97,17 @@ observations will fail until you use `vercel dev` or deploy.
 - `ELEVENLABS_VOICE_ID` (optional): the ElevenLabs voice. Defaults to the
   installation voice baked into `api/speak.ts`.
 - `ELEVENLABS_MODEL_ID` (optional): defaults to `eleven_multilingual_v2`
-  (quality). Set to `eleven_turbo_v2_5` for lower latency.
+  (quality). Set to `eleven_turbo_v2_5` or `eleven_flash_v2_5` for lower latency
+  before audio starts.
+- `ELEVENLABS_SPEED` (optional): speaking pace, `0.7` (slow) to `1.2` (fast).
+  Defaults to `1.1`.
+
+## Entry gate
+
+The installation opens on a dark splash screen that asks for a passphrase
+(`jarvis`) before the observer loads. This is a soft gate for the installation
+screen, not security: the check runs in the browser and can be bypassed, so do
+not rely on it to protect anything sensitive.
 
 ## Deploy
 

@@ -8,8 +8,17 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 // The installation voice. Overridable, but defaults to the requested voice.
 const DEFAULT_VOICE_ID = "4u5cJuSmHP9d6YRolsOu";
 // eleven_multilingual_v2 favours quality; set ELEVENLABS_MODEL_ID to
-// eleven_turbo_v2_5 for lower latency if the pause after a scan feels long.
+// eleven_turbo_v2_5 or eleven_flash_v2_5 for lower latency before audio starts.
 const DEFAULT_MODEL_ID = "eleven_multilingual_v2";
+// Speaking pace. ElevenLabs accepts 0.7 (slow) to 1.2 (fast); default a touch
+// quick. Override with ELEVENLABS_SPEED.
+const DEFAULT_SPEED = 1.1;
+
+function resolveSpeed(): number {
+  const raw = Number.parseFloat(process.env.ELEVENLABS_SPEED ?? "");
+  if (Number.isNaN(raw)) return DEFAULT_SPEED;
+  return Math.min(1.2, Math.max(0.7, raw));
+}
 
 export default async function handler(
   req: VercelRequest,
@@ -49,7 +58,14 @@ export default async function handler(
         body: JSON.stringify({
           text,
           model_id: modelId,
-          voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+          // Lower stability gives a livelier, more expressive read; speed sets
+          // the pace; speaker boost keeps the voice's character.
+          voice_settings: {
+            stability: 0.4,
+            similarity_boost: 0.75,
+            speed: resolveSpeed(),
+            use_speaker_boost: true,
+          },
         }),
       },
     );

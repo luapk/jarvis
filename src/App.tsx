@@ -87,10 +87,10 @@ export default function App() {
     try {
       let line = await observeFrame(data);
       if (!line) line = "I find myself with remarkably little to say. A rare event.";
-      typeCaption(line);
       setStatus("remark delivered.");
-      // Wait for the voice to finish so the silence is measured from there.
-      await speak(line);
+      // Reveal the caption only when the voice actually begins, and wait for the
+      // voice to finish so the silence is measured from there.
+      await speak(line, () => typeCaption(line));
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       // Surface the failure in the caption itself, not just the status line, so

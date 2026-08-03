@@ -43,9 +43,10 @@ function stopCurrent(): void {
   if ("speechSynthesis" in window) window.speechSynthesis.cancel();
 }
 
-// Play an object-URL clip to completion. Resolves true if it played, false if
-// playback was blocked or errored (so the caller can fall back).
-function playAudio(url: string): Promise<boolean> {
+// Play an object-URL clip to completion. Calls onStart the moment playback
+// actually begins. Resolves true if it played, false if playback was blocked or
+// errored (so the caller can fall back).
+function playAudio(url: string, onStart: () => void): Promise<boolean> {
   return new Promise((resolve) => {
     const audio = new Audio(url);
     currentAudio = audio;
@@ -60,17 +61,24 @@ function playAudio(url: string): Promise<boolean> {
       resolve(ok);
     };
 
+    audio.onplaying = () => onStart();
     audio.onended = () => finish(true);
     audio.onerror = () => finish(false);
-    // Safety net in case neither event fires.
+    // Safety net in case neither end event fires.
     const safety = window.setTimeout(() => finish(true), 60000);
-    audio.play().catch(() => finish(false));
+    audio
+      .play()
+      .then(() => onStart())
+      .catch(() => finish(false));
   });
 }
 
 // Try the ElevenLabs installation voice. Returns true if it spoke the line,
 // false to fall back (not configured, call failed, or playback blocked).
-async function speakViaElevenLabs(text: string): Promise<boolean> {
+async function speakViaElevenLabs(
+  text: string,
+  onStart: () => void,
+): Promise<boolean> {
   try {
     const res = await fetch("/api/speak", {
       method: "POST",
@@ -80,15 +88,16 @@ async function speakViaElevenLabs(text: string): Promise<boolean> {
     if (!res.ok) return false;
     const blob = await res.blob();
     if (!blob.size) return false;
-    return await playAudio(URL.createObjectURL(blob));
+    return await playAudio(URL.createObjectURL(blob), onStart);
   } catch {
     return false;
   }
 }
 
-// Browser Web Speech fallback. Resolves when the utterance ends, with a safety
-// timeout so a browser that never fires onend cannot stall the loop.
-function speakViaBrowser(text: string): Promise<void> {
+// Browser Web Speech fallback. Calls onStart when the utterance begins.
+// Resolves when it ends, with a safety timeout so a browser that never fires
+// onend cannot stall the loop.
+function speakViaBrowser(text: string, onStart: () => void): Promise<void> {
   return new Promise((resolve) => {
     if (!("speechSynthesis" in window)) {
       resolve();
@@ -109,6 +118,7 @@ function speakViaBrowser(text: string): Promise<void> {
     utterance.rate = 0.96;
     utterance.pitch = 0.9;
     utterance.volume = 1;
+    utterance.onstart = () => onStart();
     utterance.onend = done;
     utterance.onerror = done;
 
@@ -118,10 +128,21 @@ function speakViaBrowser(text: string): Promise<void> {
 }
 
 // Speak the given line, ElevenLabs first then browser fallback, resolving when
-// the line has finished.
-export async function speak(text: string): Promise<void> {
+// the line has finished. onStart fires when audio actually begins, so callers
+// can reveal the caption in sync with the voice. It is always called at least
+// once before resolving, so the caption still appears even if nothing spoke.
+export async function speak(text: string, onStart?: () => void): Promise<void> {
   if (!text) return;
   stopCurrent();
-  const spoken = await speakViaElevenLabs(text);
-  if (!spoken) await speakViaBrowser(text);
+
+  let started = false;
+  const startOnce = () => {
+    if (started) return;
+    started = true;
+    onStart?.();
+  };
+
+  const spoken = await speakViaElevenLabs(text, startOnce);
+  if (!spoken) await speakViaBrowser(text, startOnce);
+  startOnce();
 }
