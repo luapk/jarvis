@@ -4,19 +4,25 @@ import { initVoice, speak } from "./voice.ts";
 
 type State = "STANDBY" | "READY" | "OBSERVING";
 
-const AUTO_INTERVAL_MS = 8000;
+// Silence to hold after a spoken remark finishes, before the next scan begins.
+const SILENCE_MS = 10000;
+// Short delay before the very first scan, once the camera is live.
+const FIRST_SCAN_MS = 900;
 
 export default function App() {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   // Mutable values read inside timers and async callbacks. Kept in refs so the
-  // auto-observe interval always sees the current value, never a stale closure.
+  // scheduling loop always sees the current value, never a stale closure.
   const busyRef = useRef(false);
   const cameraReadyRef = useRef(false);
   const autoRef = useRef(true);
   const timerRef = useRef<number | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const typeTimerRef = useRef<number | null>(null);
+  // Holds the latest observe function so the timer chain and callbacks can call
+  // it without a circular useCallback dependency.
+  const observeRef = useRef<() => Promise<void>>(() => Promise.resolve());
 
   const [state, setState] = useState<State>("STANDBY");
   const [status, setStatus] = useState("");
@@ -44,16 +50,31 @@ export default function App() {
     }, 18);
   }, []);
 
+  // Schedule the next scan after the given delay, but only while auto-observe is
+  // on and the camera is live. Always clears any pending timer first, so there
+  // is never more than one scan queued.
+  const scheduleNext = useCallback((delay: number) => {
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    if (autoRef.current && cameraReadyRef.current) {
+      timerRef.current = window.setTimeout(() => {
+        void observeRef.current();
+      }, delay);
+    }
+  }, []);
+
   // Capture the current frame and send it for a remark. Never runs two calls at
-  // once: if one is in flight, this returns immediately.
+  // once. When it finishes, it waits for the spoken line to end and then holds
+  // SILENCE_MS of silence before queueing the next scan.
   const observe = useCallback(async () => {
     if (busyRef.current || !cameraReadyRef.current) return;
     const source = videoRef.current;
-    if (!source) return;
-
-    const data = frameToBase64(source);
+    const data = source ? frameToBase64(source) : null;
     if (!data) {
       setStatus("No frame yet.");
+      scheduleNext(1000);
       return;
     }
 
@@ -67,8 +88,9 @@ export default function App() {
       let line = await observeFrame(data);
       if (!line) line = "I find myself with remarkably little to say. A rare event.";
       typeCaption(line);
-      speak(line);
       setStatus("remark delivered.");
+      // Wait for the voice to finish so the silence is measured from there.
+      await speak(line);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       // Surface the failure in the caption itself, not just the status line, so
@@ -79,18 +101,14 @@ export default function App() {
       busyRef.current = false;
       setAnalysing(false);
       setState("READY");
+      // Hold ten seconds of silence, then scan again.
+      scheduleNext(SILENCE_MS);
     }
-  }, [typeCaption]);
+  }, [typeCaption, scheduleNext]);
 
-  // (Re)start the auto-observe loop to match the current toggle.
-  const startAuto = useCallback(() => {
-    if (timerRef.current !== null) {
-      window.clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-    if (autoRef.current && cameraReadyRef.current) {
-      timerRef.current = window.setInterval(observe, AUTO_INTERVAL_MS);
-    }
+  // Keep the ref pointed at the latest observe for the timer chain to call.
+  useEffect(() => {
+    observeRef.current = observe;
   }, [observe]);
 
   const startCamera = useCallback(async () => {
@@ -111,8 +129,7 @@ export default function App() {
         video.srcObject = stream;
         const begin = () => {
           cameraReadyRef.current = true;
-          startAuto();
-          window.setTimeout(observe, 900);
+          scheduleNext(FIRST_SCAN_MS);
         };
         // onloadedmetadata may have already fired if the stream attached fast,
         // so start the loop directly when metadata is present.
@@ -130,21 +147,25 @@ export default function App() {
       typeCaption("The camera is denied to me here (" + name + ").");
       setStatus("Camera error: " + name + " " + message);
     }
-  }, [observe, startAuto, typeCaption]);
+  }, [scheduleNext, typeCaption]);
 
   const onToggleAuto = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
-      autoRef.current = event.target.checked;
-      setAuto(event.target.checked);
-      startAuto();
+      const checked = event.target.checked;
+      autoRef.current = checked;
+      setAuto(checked);
+      // Turning it on resumes the loop after the usual silence; turning it off
+      // clears the pending scan (scheduleNext leaves the timer cleared when
+      // auto is off).
+      scheduleNext(SILENCE_MS);
     },
-    [startAuto],
+    [scheduleNext],
   );
 
   // Clean up the camera stream and any timers when the component unmounts.
   useEffect(() => {
     return () => {
-      if (timerRef.current !== null) window.clearInterval(timerRef.current);
+      if (timerRef.current !== null) window.clearTimeout(timerRef.current);
       if (typeTimerRef.current !== null) window.clearInterval(typeTimerRef.current);
       streamRef.current?.getTracks().forEach((track) => track.stop());
     };
@@ -180,12 +201,11 @@ export default function App() {
         <button className="primary" onClick={startCamera}>
           {cameraOn ? "Camera on" : "Start camera"}
         </button>
-        <button onClick={observe} disabled={!cameraOn}>
+        <button onClick={() => void observe()} disabled={!cameraOn}>
           Observe now
         </button>
         <label className="toggle">
           <input type="checkbox" checked={auto} onChange={onToggleAuto} /> auto-observe
-          every 8s
         </label>
       </div>
 

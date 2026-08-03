@@ -1,6 +1,5 @@
 // Frame capture, downscale, encode, and the fetch to the serverless function.
-// The same path runs whether the frame comes from the live camera or an
-// uploaded photo: both are drawn to a canvas, downscaled, and encoded to JPEG.
+// The live camera frame is drawn to a canvas, downscaled, and encoded to JPEG.
 
 const MAX_WIDTH = 768;
 const JPEG_QUALITY = 0.7;

@@ -31,15 +31,38 @@ export function initVoice(): void {
   };
 }
 
-// Cancel any in-progress utterance and speak the given line.
-export function speak(text: string): void {
-  if (!("speechSynthesis" in window) || !text) return;
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
-  if (!voice) voice = pickVoice();
-  if (voice) utterance.voice = voice;
-  utterance.rate = 0.96;
-  utterance.pitch = 0.9;
-  utterance.volume = 1;
-  window.speechSynthesis.speak(utterance);
+// Cancel any in-progress utterance and speak the given line. Resolves when the
+// line has finished being spoken, so callers can measure silence from that
+// point. Resolves immediately where speech synthesis is unavailable, and has a
+// safety timeout so a browser that never fires onend cannot stall the loop.
+export function speak(text: string): Promise<void> {
+  return new Promise((resolve) => {
+    if (!("speechSynthesis" in window) || !text) {
+      resolve();
+      return;
+    }
+
+    let settled = false;
+    const done = () => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(fallback);
+      resolve();
+    };
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    if (!voice) voice = pickVoice();
+    if (voice) utterance.voice = voice;
+    utterance.rate = 0.96;
+    utterance.pitch = 0.9;
+    utterance.volume = 1;
+    utterance.onend = done;
+    utterance.onerror = done;
+
+    // Roughly generous upper bound in case onend never fires (a known quirk in
+    // some browsers): about 90ms per character, floored at a few seconds.
+    const fallback = window.setTimeout(done, Math.max(4000, text.length * 90));
+    window.speechSynthesis.speak(utterance);
+  });
 }
