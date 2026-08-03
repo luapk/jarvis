@@ -416,3 +416,258 @@ button.primary {
   letter-spacing: 0.5px;
   color: var(--red);
 }
+
+/* ---- Hi-tech HUD, borrowing the control-panel look: teal reticle, orange
+   accents, notched frame, edge telemetry, and a reticle that locks to the
+   face. The centre is kept clear so the face reads through. ---- */
+:root {
+  --orange: #ff6a1a;
+}
+
+/* Frame corners get a glow and an orange accent nub. */
+.corner {
+  width: 32px;
+  height: 32px;
+  box-shadow: 0 0 10px rgba(57, 215, 255, 0.35);
+}
+.corner:after {
+  content: "";
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  background: var(--orange);
+  box-shadow: 0 0 8px var(--orange);
+}
+.corner.tl:after { top: 3px; left: 3px; }
+.corner.tr:after { top: 3px; right: 3px; }
+.corner.bl:after { bottom: 3px; left: 3px; }
+.corner.br:after { bottom: 3px; right: 3px; }
+
+.hud-header {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: var(--cyan);
+  padding: 5px 22px;
+  background: rgba(3, 10, 18, 0.4);
+  border: 1px solid rgba(57, 215, 255, 0.25);
+  clip-path: polygon(
+    10px 0,
+    calc(100% - 10px) 0,
+    100% 50%,
+    calc(100% - 10px) 100%,
+    10px 100%,
+    0 50%
+  );
+  white-space: nowrap;
+}
+.hud-header .sep { color: var(--orange); }
+
+.tele {
+  position: absolute;
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--mute);
+}
+.tele-tl { top: 48px; left: 20px; }
+.tele-tr { top: 48px; right: 20px; text-align: right; }
+.tele-bl { bottom: 90px; left: 20px; }
+
+.tele-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--cyan);
+  opacity: 0.85;
+}
+.tele-line.amber { color: var(--orange); }
+.tele-tr .tele-line { justify-content: flex-end; }
+
+.tele-big {
+  margin-top: 3px;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  color: var(--text);
+}
+.tele-big .unit {
+  font-size: 11px;
+  color: var(--cyan);
+  margin-left: 2px;
+}
+
+.rec {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--orange);
+  box-shadow: 0 0 8px var(--orange);
+  animation: pulse 1.2s infinite;
+}
+
+.eqbars,
+.signal {
+  display: flex;
+  gap: 3px;
+  margin-top: 7px;
+  height: 16px;
+  align-items: flex-end;
+}
+.tele-tr .signal { justify-content: flex-end; }
+.eqbars i {
+  width: 3px;
+  height: 16px;
+  background: var(--cyan);
+  transform-origin: bottom;
+  animation: eqy 1s ease-in-out infinite;
+}
+.eqbars i:nth-child(even) { background: var(--orange); }
+.eqbars i:nth-child(2) { animation-delay: 0.12s; }
+.eqbars i:nth-child(3) { animation-delay: 0.24s; }
+.eqbars i:nth-child(4) { animation-delay: 0.36s; }
+.eqbars i:nth-child(5) { animation-delay: 0.48s; }
+.eqbars i:nth-child(6) { animation-delay: 0.6s; }
+.eqbars i:nth-child(7) { animation-delay: 0.72s; }
+
+.signal i { width: 3px; background: var(--cyan); }
+.signal i:nth-child(1) { height: 20%; }
+.signal i:nth-child(2) { height: 40%; }
+.signal i:nth-child(3) { height: 60%; }
+.signal i:nth-child(4) { height: 80%; }
+.signal i:nth-child(5) { height: 100%; }
+
+.eq-column {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.eq-column i {
+  width: 24px;
+  height: 3px;
+  background: var(--cyan);
+  opacity: 0.6;
+  transform-origin: left;
+  animation: eqx 1.2s ease-in-out infinite;
+}
+.eq-column i:nth-child(even) { background: var(--orange); opacity: 0.5; }
+.eq-column i:nth-child(3n) { animation-delay: 0.2s; }
+.eq-column i:nth-child(3n + 1) { animation-delay: 0.45s; }
+.eq-column i:nth-child(3n + 2) { animation-delay: 0.7s; }
+
+.loadbar { display: flex; gap: 2px; margin-top: 7px; }
+.loadbar i {
+  width: 8px;
+  height: 6px;
+  background: rgba(57, 215, 255, 0.22);
+}
+.loadbar i:nth-child(-n + 7) { background: var(--cyan); }
+
+/* Face lock: brackets, ring, rotating dashed arc, and edge ticks, all near the
+   edges so the face stays clear. Smoothed with a short transition. */
+.lock {
+  position: absolute;
+  pointer-events: none;
+  transition: left 0.09s linear, top 0.09s linear, width 0.09s linear,
+    height 0.09s linear;
+}
+.lock .lc {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--cyan);
+  box-shadow: 0 0 8px rgba(57, 215, 255, 0.5);
+}
+.lc.tl { top: 0; left: 0; border-right: 0; border-bottom: 0; }
+.lc.tr { top: 0; right: 0; border-left: 0; border-bottom: 0; }
+.lc.bl { bottom: 0; left: 0; border-right: 0; border-top: 0; }
+.lc.br { bottom: 0; right: 0; border-left: 0; border-top: 0; }
+.lock-ring {
+  position: absolute;
+  inset: 12%;
+  border: 1px solid rgba(57, 215, 255, 0.3);
+  border-radius: 50%;
+}
+.lock-arc {
+  position: absolute;
+  inset: 3%;
+  border: 1px dashed rgba(255, 106, 26, 0.55);
+  border-radius: 50%;
+  animation: spin 6s linear infinite;
+}
+.lock-tick { position: absolute; background: var(--orange); }
+.lock-tick.t { top: 0; left: 50%; width: 2px; height: 10px; transform: translateX(-50%); }
+.lock-tick.b { bottom: 0; left: 50%; width: 2px; height: 10px; transform: translateX(-50%); }
+.lock-tick.l { left: 0; top: 50%; width: 10px; height: 2px; transform: translateY(-50%); }
+.lock-tick.r { right: 0; top: 50%; width: 10px; height: 2px; transform: translateY(-50%); }
+.lock-label {
+  position: absolute;
+  top: -18px;
+  left: 0;
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--cyan);
+  white-space: nowrap;
+}
+
+/* Centred scanning reticle while acquiring a face. */
+.scan-reticle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 220px;
+  height: 220px;
+  margin: -110px 0 0 -110px;
+  pointer-events: none;
+}
+.sr-ring { position: absolute; border-radius: 50%; }
+.sr1 { inset: 0; border: 1px solid rgba(57, 215, 255, 0.25); }
+.sr2 {
+  inset: 18px;
+  border: 1px dashed rgba(57, 215, 255, 0.5);
+  animation: spin 8s linear infinite;
+}
+.sr3 {
+  inset: 46px;
+  border: 1px solid rgba(255, 106, 26, 0.4);
+  animation: spin 5s linear infinite reverse;
+}
+.sr-cross { position: absolute; background: rgba(57, 215, 255, 0.5); }
+.sr-cross.v { left: 50%; top: 18%; bottom: 18%; width: 1px; transform: translateX(-50%); }
+.sr-cross.h { top: 50%; left: 18%; right: 18%; height: 1px; transform: translateY(-50%); }
+.sr-label {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: var(--cyan);
+  white-space: nowrap;
+  animation: blink 1.4s steps(1) infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes eqy {
+  0%, 100% { transform: scaleY(0.35); }
+  50% { transform: scaleY(1); }
+}
+@keyframes eqx {
+  0%, 100% { transform: scaleX(0.4); }
+  50% { transform: scaleX(1); }
+}
+
+/* Subtitles (the spoken remark): 20% smaller and blue. */
+.caption {
+  color: var(--cyan);
+  font-size: clamp(12px, 1.9vw, 17.6px);
+}
