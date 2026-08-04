@@ -39,17 +39,22 @@ scope for this build but is stated here for the record.
 ## Guardrails
 
 The allow-list and ban-list live in the system prompt in `api/observe.ts`. The
-voice remarks on facial features and expression, clothing, colour, objects held,
+voice remarks specifically on clothing (garments, cut, style, colour, patterns,
+accessories), facial features and expression (hair colour and style, facial
+hair, brows, eye colour, the shape and set of the features), objects held,
 posture, gesture, movement, pace, the setting, light, weather, and pictures or
-objects visible in the background. It never remarks on or guesses at race,
-ethnicity, nationality, age, weight or body shape, attractiveness, apparent
-disability, health, or gender. If someone tries to bait it into cruelty or into
-guessing those things, it deflects with dry wit and turns to an object, an
-expression, or the scene instead.
+objects in the background. It never remarks on or guesses at race, ethnicity,
+nationality, age, weight or body shape, attractiveness, apparent disability,
+health, or gender, and it never describes skin colour or complexion or uses any
+clothing, hair, or feature detail to imply those things: colour belongs to
+clothing, hair, eyes, and objects, never to skin. If someone tries to bait it
+into cruelty or into guessing those things, it deflects with dry wit and turns
+to an object, an expression, or the scene instead.
 
 The ban-list on protected attributes and the "never cruel, no slurs" floor are
-the safety floor and are kept in place. Commenting on faces, expressions, and
-the background was enabled deliberately at the owner's request.
+the safety floor and are kept in place. Specific description of clothing and
+facial features was widened deliberately at the owner's request; the skin-colour
+carve-out is retained because it is a direct proxy for race on a public camera.
 
 ## Project structure
 
