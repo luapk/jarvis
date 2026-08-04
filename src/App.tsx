@@ -93,6 +93,7 @@ export default function App() {
   const trackerStopRef = useRef<(() => void) | null>(null);
   const handStopRef = useRef<(() => void) | null>(null);
   const loseTimerRef = useRef<number | null>(null);
+  const recentLinesRef = useRef<string[]>([]);
 
   const [state, setState] = useState<State>("STANDBY");
   const [status, setStatus] = useState("");
@@ -161,8 +162,10 @@ export default function App() {
     setStatus("analysing frame...");
 
     try {
-      let line = await observeFrame(data);
+      let line = await observeFrame(data, recentLinesRef.current);
       if (!line) line = "I find myself with remarkably little to say. A rare event.";
+      // Remember recent lines so the next call can avoid repeating them.
+      recentLinesRef.current = [...recentLinesRef.current, line].slice(-6);
       setStatus("remark delivered.");
       await speak(line, () => typeCaption(line));
     } catch (err) {

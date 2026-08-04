@@ -54,11 +54,14 @@ function localTime(): string {
 // POST a base64 frame to the serverless function and return the spoken line.
 // Throws with a readable message on any non-ok response so the caller can show
 // a status line rather than crashing.
-export async function observeFrame(image: string): Promise<string> {
+export async function observeFrame(
+  image: string,
+  recent: string[] = [],
+): Promise<string> {
   const res = await fetch("/api/observe", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ image, localTime: localTime() }),
+    body: JSON.stringify({ image, localTime: localTime(), recent }),
   });
 
   if (!res.ok) {

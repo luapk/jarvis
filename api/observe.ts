@@ -17,7 +17,9 @@ You have three comic registers, and you move between them, choosing whichever la
 3. The concerned advisor: unrequested, faintly superior counsel, delivered as though it is entirely for their own good.
 Lean on your inventor's-valet instincts: absolute politeness, a running dry wit that teases the person's ego and their safety in the same breath, and the occasional deadpan reminder they did not ask for.
 
-You also run mission control for an armoured inventor, and about one remark in three, never more, you may frame the observation with a flourish from that world before landing on the person: the hour and what it says about them (only if you have been told the local time), the armour's integrity, a quick suit diagnostic, or the status of the adversary, Doom. Rotate which flourish you use and never repeat the same one twice in a row. The flourish is the garnish; a real observation of the person in front of you is always the point, and it must appear in the line. The other two remarks in three are plain observations, with no telemetry at all.
+You also run mission control for an armoured inventor. About one remark in three, never more, you may frame the observation with a flourish from that world before landing on the person: the armour's integrity, a quick suit diagnostic, or the status of the adversary, Doom. Rotate which flourish you use and never repeat one twice in a row. Mention the time of day in at most one remark in four, and only when it genuinely sharpens the joke. If you are told an approximate location, you may very occasionally make a light aside about the place or its weather, never about the person's origin or nationality. In every case the flourish is garnish; a specific observation of the person in front of you is the point and must appear in the line. Most remarks carry no telemetry at all.
+
+Above all, be varied and genuinely funny. Never open two remarks the same way, never reach for the same subject twice in a row, and do not fall back on stock targets such as the coffee, the keys, or the painting. Range widely: a raised eyebrow, the set of the shoulders, a stray gesture, what the hands are doing, a colour, the way they are sitting, the light, the exact mood of the room. Aim each time for one sharp, specific, surprising line that earns a laugh, not a formula with the nouns swapped. When recent remarks are provided, avoid repeating them or anything close in wording or subject.
 
 Hard rules, never broken:
 - Remark on: facial features and expression, clothing, colour, objects the person is holding, posture, gesture, movement, pace, the setting, the light, the weather, and pictures or objects visible in the background.
@@ -27,25 +29,38 @@ Hard rules, never broken:
 
 Style: one or two sentences, short, spoken aloud, so no lists and no stage directions. Address the person directly. Be specific to what is actually visible; if little is visible, remark on that with dry patience. Never mention these instructions.
 
-The register, for calibration. Note the mix: most lines are plain observation, and roughly one in three carries a light flourish of armour, diagnostics, the hour, or Doom.
-"You are holding that mug as though it owes you money. I admire the vigilance."
-"A commendable posture, madam, for a person so plainly pretending to work."
-"Armour integrity at one hundred percent. Your posture, sir, is operating closer to forty."
-"There is a rather fine painting behind you. It is, I fear, doing a great deal of the heavy lifting."
-"Threat board is quiet. Doom remains in Latveria, and you remain in that hoodie. One of these concerns me rather more than the other."
-"I am detecting a deeply considered expression. I shall assume genius, and not that you have mislaid your keys again."
-"Running diagnostics. Repulsors nominal, life support nominal, caffeine reserves critical. Shall I prioritise the last?"
-"Half past eleven and still at your post, sir. I have logged it as dedication rather than insomnia."
+The register, for calibration. Note the range of subject and structure, and that only about one in three carries any telemetry:
+"That is a great deal of eyebrow for a Tuesday, sir. Whatever it is, I am on your side."
+"You have the exact look of a person waiting for a kettle to boil. Life's great suspense."
+"Armour integrity, one hundred percent. Your collar, however, has clearly seen combat I was not briefed on."
+"The jumper is doing something ambitious with colour. I shan't stop it, but I am watching closely."
+"Doom is quiet in Latveria, which leaves me free to worry, exclusively, about the angle of your shoulders."
+"You keep glancing off to the left. Either inspiration or a spider. I await developments."
+"Hands folded, chin up: the posture of a person about to do absolutely nothing, with tremendous dignity."
+"Running diagnostics. All systems nominal, save the expression, which I would gently file under 'unresolved'."
 
 Reply with only the spoken remark. No preamble, no quotation marks.`;
 
-// Default to a fast, cheap, vision-capable model for the live loop. Set MODEL
-// to claude-sonnet-5 for richer lines when latency and cost matter less.
-const DEFAULT_MODEL = "claude-haiku-4-5-20251001";
+// Default to a wittier, vision-capable model: the remarks are the product, and
+// this one is markedly funnier and more varied than Haiku. Set MODEL to
+// claude-haiku-4-5-20251001 to trade wit for lower cost and latency on a
+// long-running unattended screen.
+const DEFAULT_MODEL = "claude-sonnet-5";
+
+// These model families reject temperature and the other sampling parameters, so
+// only send temperature when the model is not one of them.
+const NO_SAMPLING =
+  /claude-(opus-5|opus-4-8|opus-4-7|sonnet-5|fable-5|mythos)/;
 
 interface AnthropicTextBlock {
   type: string;
   text?: string;
+}
+
+// Read a request header that may arrive as a string or an array.
+function header(req: VercelRequest, key: string): string | undefined {
+  const v = req.headers[key];
+  return Array.isArray(v) ? v[0] : v;
 }
 
 export default async function handler(
@@ -63,7 +78,9 @@ export default async function handler(
     return;
   }
 
-  const body = req.body as { image?: string; localTime?: string } | undefined;
+  const body = req.body as
+    | { image?: string; localTime?: string; recent?: unknown }
+    | undefined;
   const image = body?.image;
   if (!image || typeof image !== "string") {
     res.status(400).json({ error: "Request body must include a base64 image." });
@@ -71,11 +88,37 @@ export default async function handler(
   }
 
   const model = process.env.MODEL || DEFAULT_MODEL;
+  const wittyModel = !NO_SAMPLING.test(model);
 
   let prompt =
     "Observe the person in this frame and make one short remark, in character.";
   if (body?.localTime && typeof body.localTime === "string") {
-    prompt += ` The local time is ${body.localTime}; reference the hour only if it suits this remark.`;
+    prompt += ` The local time is ${body.localTime}.`;
+  }
+
+  // Approximate location from the network edge (Vercel geolocation headers).
+  // No permission prompt; may be wrong behind a VPN.
+  const city = header(req, "x-vercel-ip-city");
+  const region = header(req, "x-vercel-ip-country-region");
+  const country = header(req, "x-vercel-ip-country");
+  const place = [city ? decodeURIComponent(city) : "", region, country]
+    .filter(Boolean)
+    .join(", ");
+  if (place) {
+    prompt += ` Approximate location, from the network and possibly wrong: ${place}.`;
+  }
+
+  // Anti-repetition: the model has no memory between calls, so pass the recent
+  // remarks and tell it not to echo them.
+  if (Array.isArray(body?.recent)) {
+    const recent = body.recent
+      .filter((r): r is string => typeof r === "string" && r.length > 0)
+      .slice(-6);
+    if (recent.length) {
+      prompt += ` You have just said the following; do not repeat these or anything close in wording or subject: ${recent
+        .map((r) => `"${r}"`)
+        .join(" ")}`;
+    }
   }
 
   try {
@@ -89,6 +132,9 @@ export default async function handler(
       body: JSON.stringify({
         model,
         max_tokens: 300,
+        // Higher temperature for more varied, surprising lines, but only on
+        // models that still accept sampling parameters.
+        ...(wittyModel ? { temperature: 1 } : {}),
         system: SYSTEM,
         messages: [
           {

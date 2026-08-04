@@ -29,7 +29,10 @@ about what it chooses to notice, which is what makes it both funny and safe.
 
 No frame is ever written to disk, logged, or sent anywhere except the single
 model call to Anthropic. There is no database, no analytics, and no image
-storage of any kind. For a live public installation, production would need a
+storage of any kind. The serverless function reads the approximate location that
+Vercel derives from the network edge (city and region only) and passes it, along
+with the local time, into that same model call to colour the occasional remark.
+Neither is stored or logged. For a live public installation, production would need a
 moderated feed with a human kill switch and visible signage. That is out of
 scope for this build but is stated here for the record.
 
@@ -88,9 +91,10 @@ observations will fail until you use `vercel dev` or deploy.
 
 - `ANTHROPIC_API_KEY` (required): read server-side only, never sent to the
   browser or included in the client bundle.
-- `MODEL` (optional): defaults to `claude-haiku-4-5-20251001`, a fast, cheap,
-  vision-capable model for the live loop. Set to `claude-sonnet-5` for richer
-  lines when latency and cost are less critical.
+- `MODEL` (optional): defaults to `claude-sonnet-5`, chosen because the remarks
+  are the product and it is markedly wittier and more varied. Set to
+  `claude-haiku-4-5-20251001` to trade wit for lower cost and latency on a
+  long-running unattended screen.
 - `ELEVENLABS_API_KEY` (optional): enables the ElevenLabs installation voice,
   read server-side only. If unset, the app uses the browser voice, so the demo
   needs only the Anthropic key.
