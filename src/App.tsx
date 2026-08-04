@@ -94,6 +94,8 @@ export default function App() {
   const handStopRef = useRef<(() => void) | null>(null);
   const loseTimerRef = useRef<number | null>(null);
   const recentLinesRef = useRef<string[]>([]);
+  // Counts remarks so an armour-suit status beat lands on every other one.
+  const remarkIndexRef = useRef(0);
 
   const [state, setState] = useState<State>("STANDBY");
   const [status, setStatus] = useState("");
@@ -161,8 +163,12 @@ export default function App() {
     setState("OBSERVING");
     setStatus("analysing frame...");
 
+    // Armour-suit status beat on every other remark.
+    const armourStatus = remarkIndexRef.current % 2 === 0;
+    remarkIndexRef.current += 1;
+
     try {
-      let line = await observeFrame(data, recentLinesRef.current);
+      let line = await observeFrame(data, recentLinesRef.current, armourStatus);
       if (!line) line = "I find myself with remarkably little to say. A rare event.";
       // Remember recent lines so the next call can avoid repeating them.
       recentLinesRef.current = [...recentLinesRef.current, line].slice(-6);

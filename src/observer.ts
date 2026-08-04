@@ -57,11 +57,12 @@ function localTime(): string {
 export async function observeFrame(
   image: string,
   recent: string[] = [],
+  armourStatus = false,
 ): Promise<string> {
   const res = await fetch("/api/observe", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ image, localTime: localTime(), recent }),
+    body: JSON.stringify({ image, localTime: localTime(), recent, armourStatus }),
   });
 
   if (!res.ok) {
