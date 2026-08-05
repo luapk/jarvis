@@ -73,25 +73,64 @@ function playAudio(url: string, onStart: () => void): Promise<boolean> {
   });
 }
 
-// Try the ElevenLabs installation voice. Returns true if it spoke the line,
-// false to fall back (not configured, call failed, or playback blocked).
-async function speakViaElevenLabs(
+interface VoiceResult {
+  ok: boolean;
+  status: number; // HTTP status, 0 for a network error, -1 for playback blocked
+  reason?: string;
+}
+
+const wait = (ms: number) => new Promise((r) => window.setTimeout(r, ms));
+
+// One attempt at the ElevenLabs installation voice.
+async function tryElevenLabs(
   text: string,
   onStart: () => void,
-): Promise<boolean> {
+): Promise<VoiceResult> {
   try {
     const res = await fetch("/api/speak", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text }),
     });
-    if (!res.ok) return false;
+    if (!res.ok) {
+      let reason = "";
+      try {
+        const j = (await res.json()) as { error?: string };
+        reason = j?.error ?? "";
+      } catch {
+        // Non-JSON error body; the status is enough.
+      }
+      return { ok: false, status: res.status, reason };
+    }
     const blob = await res.blob();
-    if (!blob.size) return false;
-    return await playAudio(URL.createObjectURL(blob), onStart);
-  } catch {
-    return false;
+    if (!blob.size) return { ok: false, status: res.status, reason: "empty audio" };
+    const played = await playAudio(URL.createObjectURL(blob), onStart);
+    return played
+      ? { ok: true, status: res.status }
+      : { ok: false, status: -1, reason: "playback blocked" };
+  } catch (err) {
+    return {
+      ok: false,
+      status: 0,
+      reason: err instanceof Error ? err.message : String(err),
+    };
   }
+}
+
+// Try ElevenLabs, retrying once on a transient failure (rate limit, server
+// error, or network). Returns the final result.
+async function speakViaElevenLabs(
+  text: string,
+  onStart: () => void,
+): Promise<VoiceResult> {
+  let result = await tryElevenLabs(text, onStart);
+  const transient =
+    result.status === 429 || result.status >= 500 || result.status === 0;
+  if (!result.ok && transient) {
+    await wait(500);
+    result = await tryElevenLabs(text, onStart);
+  }
+  return result;
 }
 
 // Browser Web Speech fallback. Calls onStart when the utterance begins.
@@ -131,7 +170,11 @@ function speakViaBrowser(text: string, onStart: () => void): Promise<void> {
 // the line has finished. onStart fires when audio actually begins, so callers
 // can reveal the caption in sync with the voice. It is always called at least
 // once before resolving, so the caption still appears even if nothing spoke.
-export async function speak(text: string, onStart?: () => void): Promise<void> {
+export async function speak(
+  text: string,
+  onStart?: () => void,
+  onFallback?: (reason: string) => void,
+): Promise<void> {
   if (!text) return;
   stopCurrent();
 
@@ -142,7 +185,14 @@ export async function speak(text: string, onStart?: () => void): Promise<void> {
     onStart?.();
   };
 
-  const spoken = await speakViaElevenLabs(text, startOnce);
-  if (!spoken) await speakViaBrowser(text, startOnce);
+  const result = await speakViaElevenLabs(text, startOnce);
+  if (!result.ok) {
+    // 501 just means ElevenLabs is not configured; do not report that as a
+    // fault. Anything else is a real fallback the caller may want to see.
+    if (result.status !== 501 && onFallback) {
+      onFallback(`${result.status} ${result.reason ?? ""}`.trim());
+    }
+    await speakViaBrowser(text, startOnce);
+  }
   startOnce();
 }

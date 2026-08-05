@@ -173,7 +173,14 @@ export default function App() {
       // Remember recent lines so the next call can avoid repeating them.
       recentLinesRef.current = [...recentLinesRef.current, line].slice(-6);
       setStatus("remark delivered.");
-      await speak(line, () => typeCaption(line));
+      // Surface any ElevenLabs fallback reason so a silent switch to the browser
+      // voice is visible rather than mysterious.
+      await speak(
+        line,
+        () => typeCaption(line),
+        (reason) =>
+          setStatus("ElevenLabs unavailable, using browser voice: " + reason),
+      );
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       typeCaption("A momentary lapse. " + message);
