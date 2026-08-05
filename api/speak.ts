@@ -72,7 +72,10 @@ export default async function handler(
 
     if (!upstream.ok) {
       const detail = await upstream.text();
-      res.status(502).json({
+      // Pass the real upstream status through so the client can tell a
+      // permanent error (401 quota or bad key) from a transient one (429, 5xx)
+      // and only retry the transient ones.
+      res.status(upstream.status).json({
         error: `ElevenLabs returned ${upstream.status}: ${detail.slice(0, 300)}`,
       });
       return;
